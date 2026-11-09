@@ -1,0 +1,95 @@
+== Data quality ==
+Sales rows: 58168 | orders: 25429 | customers with sales: 18222 of 18484 | products sold: 133 of 606
+Order dates: 2019-01-01 to 2021-01-28 | Calendar table: 2019-01-01 to 2021-12-31 | Budget: 2020-01-01 to 2021-06
+
+1) Order dates that do not exist in the calendar table:
+   OrderDateKey rows   sales
+1:     20190229    2 2854.41
+
+2) Budget months without any sales data (dashboards would show -100% vs budget):
+     month  Budget    sales
+1: 2021-01  800000 45694.72
+2: 2021-02  800000       NA
+3: 2021-03 1000000       NA
+4: 2021-04 1000000       NA
+5: 2021-05 1100000       NA
+6: 2021-06 1100000       NA
+
+3) Product Status values (SQL: ISNULL(Status, 'Outdated')):
+   Product Status   N
+1:        Current 406
+2:        Outdate 200
+   'Outdated' is cut to 'Outdate': ISNULL returns the type of its first argument,
+   and DimProduct.Status is nvarchar(7). Fix: COALESCE(p.Status, 'Outdated').
+
+4) 77 product names have more than one ProductKey (price history versions).
+   Visuals grouped by Product Name add the versions together (correct for sales),
+   but a filter on ProductKey or ProductItemCode would split them.
+
+5) The SQL extract keeps OrderDateKey >= YEAR(GETDATE()) - 2. Run in 2026 it
+   returns orders from 2024 onward, i.e. nothing: the data ends in January 2021.
+
+== Story 4: sales vs budget ==
+   year       sales
+1: 2019  5839630.79
+2: 2020 16351550.34
+3: 2021    45694.72
+      month   sales  Budget variance variance_pct
+ 1: 2020-01  857690  800000    57690          7.2
+ 2: 2020-02  771349  800000   -28651         -3.6
+ 3: 2020-03 1049907 1000000    49907          5.0
+ 4: 2020-04 1046023 1000000    46023          4.6
+ 5: 2020-05 1284593 1100000   184593         16.8
+ 6: 2020-06 1643178 1100000   543178         49.4
+ 7: 2020-07 1371676 1500000  -128324         -8.6
+ 8: 2020-08 1551066 1500000    51066          3.4
+ 9: 2020-09 1447496 1500000   -52504         -3.5
+10: 2020-10 1673293 1500000   173293         11.6
+11: 2020-11 1780920 1500000   280920         18.7
+12: 2020-12 1874360 2000000  -125640         -6.3
+2020 total: sales 16.35M vs budget 15.30M -> +6.9%. Months above budget: 8 of 12
+
+== Stories 1 and 3: products ==
+   Product Category      sales share
+1:            Bikes 21199197.7  95.3
+2:      Accessories   700760.0   3.2
+3:         Clothing   339772.6   1.5
+Products sold: 117. Top 10 = 47.9% of revenue. 29 products make 80% of revenue.
+               Product Name Product Category   sales units
+ 1:  Mountain-200 Black, 46            Bikes 1371420   619
+ 2:  Mountain-200 Black, 42            Bikes 1363142   614
+ 3: Mountain-200 Silver, 38            Bikes 1339463   596
+ 4: Mountain-200 Silver, 46            Bikes 1301100   580
+ 5:  Mountain-200 Black, 38            Bikes 1290768   580
+ 6: Mountain-200 Silver, 42            Bikes 1255363   559
+ 7:      Road-250 Black, 52            Bikes  730038   317
+ 8:        Road-250 Red, 58            Bikes  696093   303
+ 9:      Road-250 Black, 48            Bikes  691206   298
+10:      Road-250 Black, 44            Bikes  621833   268
+
+== Stories 1 and 2: customers ==
+Customers: 18222. Top 10 = 0.5%, top 1% = 6.2%, top 20% = 64.2% of revenue.
+Orders per customer: mean 1.40. One order only: 70.9% of customers.
+Bike buyers: 8870. Of them, 13.4% never bought accessories or clothing.
+Top 5 cities:
+   Customer City    sales
+1:        London 693517.9
+2:         Paris 470334.0
+3:    Wollongong 256013.9
+4:       Bendigo 233819.7
+5:        Berlin 230563.7
+
+== Expected values for the DAX measures (check the Power BI matrix against these) ==
+      month   Sales Sales YTD Sales PY YoY % Sales 3M Avg  Budget Budget Var %
+ 1: 2020-01  857690    857690   495364  73.1       673383  800000          7.2
+ 2: 2020-02  771349   1629039   504140  53.0       751180  800000         -3.6
+ 3: 2020-03 1049907   2678946   373483 181.1       892982 1000000          5.0
+ 4: 2020-04 1046023   3724969   400336 161.3       955760 1000000          4.6
+ 5: 2020-05 1284593   5009562   358878 257.9      1126841 1100000         16.8
+ 6: 2020-06 1643178   6652740   555160 196.0      1324598 1100000         49.4
+ 7: 2020-07 1371676   8024415   444558 208.5      1433149 1500000         -8.6
+ 8: 2020-08 1551066   9575481   523917 196.1      1521973 1500000          3.4
+ 9: 2020-09 1447496  11022977   486177 197.7      1456746 1500000         -3.5
+10: 2020-10 1673293  12696270   535159 212.7      1557285 1500000         11.6
+11: 2020-11 1780920  14477190   537956 231.1      1633903 1500000         18.7
+12: 2020-12 1874360  16351550   624502 200.1      1776191 2000000         -6.3

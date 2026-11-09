@@ -1,0 +1,46 @@
+// =============================================================================
+// Time-intelligence measures for SalesReport.pbix
+// Model: FACT_InternetSales, FACT_Budget, DIM_Calendar, DIM_Customers, DIM_Products
+// Existing base measures in 'Analysis Metrics': [Sales], [Budget]
+// Prerequisite: DIM_Calendar is marked as the date table (column DIM_Calendar[Date]).
+// Expected results for 2020: analysis/output/dax_reference_values_2020.csv
+// =============================================================================
+
+// --- Year to date -------------------------------------------------------------
+Sales YTD =
+TOTALYTD ( [Sales], 'DIM_Calendar'[Date] )
+
+Budget YTD =
+TOTALYTD ( [Budget], 'DIM_Calendar'[Date] )
+
+Budget Variance YTD % =
+DIVIDE ( [Sales YTD] - [Budget YTD], [Budget YTD] )
+
+// --- Comparison with the previous year ------------------------------------------
+Sales PY =
+CALCULATE ( [Sales], SAMEPERIODLASTYEAR ( 'DIM_Calendar'[Date] ) )
+
+Sales YoY % =
+DIVIDE ( [Sales] - [Sales PY], [Sales PY] )
+
+// --- Budget variance, only for months that have actual sales -----------------------
+// The budget runs to June 2021 but sales data ends on 28 Jan 2021. Without this
+// guard, Feb-Jun 2021 would show -100 % against budget.
+Budget Variance % =
+VAR HasSales = NOT ISBLANK ( [Sales] )
+RETURN
+    IF ( HasSales, DIVIDE ( [Sales] - [Budget], [Budget] ) )
+
+// --- Smoothing: rolling 3-month average of monthly sales ---------------------------
+Sales 3M Avg =
+VAR Last3Months =
+    DATESINPERIOD ( 'DIM_Calendar'[Date], MAX ( 'DIM_Calendar'[Date] ), -3, MONTH )
+RETURN
+    DIVIDE ( CALCULATE ( [Sales], Last3Months ), 3 )
+
+// --- Context for KPI cards ------------------------------------------------------------
+Last Sales Date =
+CALCULATE (
+    MAX ( 'DIM_Calendar'[Date] ),
+    FILTER ( ALL ( 'DIM_Calendar' ), NOT ISBLANK ( [Sales] ) )
+)
